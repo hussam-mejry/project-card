@@ -1,11 +1,12 @@
 using UnityEngine;
 using System.Collections.Generic;
 using System;
+using System.Linq;
 
 public class PlayerLayoutManager : MonoBehaviour
 {
     public GameObject playerHandDisplayPrefab;
-    public Transform[] enemyHandAnchors;
+    public List<PlayerLayout> playerLayouts;
     public CardSpriteMap cardSpriteMap;
     private List<PlayerHandDisplay> playerDisplays = new List<PlayerHandDisplay>();
     public Action<Player, int> OnOpponentCardSelected;
@@ -29,35 +30,44 @@ public class PlayerLayoutManager : MonoBehaviour
             Debug.LogError("CardSpriteMap is null! Cannot setup player displays.");
             return;
         }
-        // Clear existing displays
+
         foreach (var display in playerDisplays)
         {
-            if (display != null)
-                Destroy(display.gameObject);
+            if (display != null) Destroy(display.gameObject);
         }
         playerDisplays.Clear();
 
-        // Create new displays for all non-local players
+        int totalPlayerCount = players.Count;
+        PlayerLayout activeLayout = playerLayouts.FirstOrDefault(layout => layout.playerCount == totalPlayerCount);
+
+        if (activeLayout == null || activeLayout.anchorPoints == null)
+        {
+            Debug.LogError($"No layout defined in PlayerLayoutManager for {totalPlayerCount} players!");
+            return;
+        }
+
+        Transform[] activeAnchors = activeLayout.anchorPoints;
         int displayIndex = 0;
         for (int i = 0; i < players.Count; i++)
         {
-            if (i != localPlayerIndex && displayIndex < enemyHandAnchors.Length)
+            if (i == localPlayerIndex) continue; // Skip the local player
+
+            if (displayIndex < activeAnchors.Length)
             {
-                var displayObj = Instantiate(playerHandDisplayPrefab, enemyHandAnchors[displayIndex]);
+                Transform parentAnchor = activeAnchors[displayIndex];
+                var displayObj = Instantiate(playerHandDisplayPrefab, parentAnchor);
                 var display = displayObj.GetComponent<PlayerHandDisplay>();
+
                 if (display != null)
                 {
                     display.spriteMap = cardSpriteMap;
                     display.Initialize(players[i], i, players[i].Username);
-                    // Subscribe to the event
                     display.OnCardSelected += (player, cardIndex) => OnOpponentCardSelected?.Invoke(player, cardIndex);
                     playerDisplays.Add(display);
                 }
                 displayIndex++;
             }
         }
-
-        UpdateAllDisplays(players, localPlayerIndex);
     }
 
     public void UpdateAllDisplays(List<Player> players, int currentPlayerIndex)

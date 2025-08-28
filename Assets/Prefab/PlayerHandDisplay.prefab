@@ -295,8 +295,9 @@ MonoBehaviour:
   - {fileID: 776344091679889049}
   - {fileID: 3316967358691426793}
   - {fileID: 1351073876884338511}
+  cardHighlights: []
   playerNameText: {fileID: 8622302379758724611}
-  highlightEffect: {fileID: 2329619944057133439}
+  currentPlayerIndicator: {fileID: 2329619944057133439}
   cardBackSprite: {fileID: 3515951074437487044, guid: cd3592e7ad834f848ae0d1649719e710, type: 3}
   spriteMap: {fileID: 11400000, guid: 2e4772695a5c3dc459e065d4ef1e5079, type: 2}
 --- !u!1 &2815409566299165458
