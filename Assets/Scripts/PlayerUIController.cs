@@ -35,14 +35,59 @@ public class PlayerUIController : MonoBehaviour
     private Action onPeekingComplete;
     private bool isPeeking;
 
+    [Header("Pause Menu")] public GameObject pauseMenuPanel;
+    public Button resumeButton;
+    public Button backToMenuButton;
+    public Button quitToDesktopButton;
+
     void Awake()
     {
         if (gameManager == null) gameManager = FindFirstObjectByType<GameManager>();
     }
 
+    void Start()
+    {
+        if (gameplayUI != null) gameplayUI.SetActive(false);
+        for (int i = 0; i < cardButtons.Length; i++)
+        {
+            int index = i;
+            if (cardButtons[i] != null) cardButtons[i].onClick.AddListener(() => OnCardButtonClicked(index));
+        }
+
+        // Gameplay Button Listeners
+        if (discardButton != null) discardButton.onClick.AddListener(OnDiscardButtonClicked);
+        if (cambioButton != null) cambioButton.onClick.AddListener(OnCambioButtonClicked);
+        if (drawPileButton != null) drawPileButton.onClick.AddListener(OnDrawPileClicked);
+        if (discardPileButton != null) discardPileButton.onClick.AddListener(OnDiscardPileClicked);
+        if (restartButton != null) restartButton.onClick.AddListener(OnRestartClicked);
+
+        if (resumeButton != null) resumeButton.onClick.AddListener(OnResumeButtonClicked);
+        if (backToMenuButton != null) backToMenuButton.onClick.AddListener(OnBackToMenuClicked);
+        if (quitToDesktopButton != null) quitToDesktopButton.onClick.AddListener(OnQuitToDesktopClicked);
+
+        // Ensure all UI panels are correctly disabled on start
+        foreach (var highlight in cardHighlights)
+        {
+            if (highlight != null) highlight.SetActive(false);
+        }
+        if (scoreboardPanel != null) scoreboardPanel.SetActive(false);
+        if (gameOverPanel != null) gameOverPanel.SetActive(false);
+        if (peekingPanel != null) peekingPanel.SetActive(false);
+        if (pauseMenuPanel != null) pauseMenuPanel.SetActive(false);
+
+        SetInteractable(false);
+    }
+
     void Update()
     {
-        if (Keyboard.current != null && Keyboard.current.tabKey.isPressed)
+        if (Keyboard.current == null) return;
+
+        if (Keyboard.current.escapeKey.wasPressedThisFrame)
+        {
+            gameManager.TogglePause();
+        }
+
+        if (Keyboard.current.tabKey.isPressed)
         {
             if (scoreboardPanel != null && !scoreboardPanel.activeSelf)
             {
@@ -59,34 +104,13 @@ public class PlayerUIController : MonoBehaviour
         }
     }
 
-    void Start()
-    {
-        if (gameplayUI != null) gameplayUI.SetActive(false);
-        for (int i = 0; i < cardButtons.Length; i++)
-        {
-            int index = i;
-            if (cardButtons[i] != null) cardButtons[i].onClick.AddListener(() => OnCardButtonClicked(index));
-        }
-        if (discardButton != null) discardButton.onClick.AddListener(OnDiscardButtonClicked);
-        if (cambioButton != null) cambioButton.onClick.AddListener(OnCambioButtonClicked);
-        if (drawPileButton != null) drawPileButton.onClick.AddListener(OnDrawPileClicked);
-        if (discardPileButton != null) discardPileButton.onClick.AddListener(OnDiscardPileClicked);
-        if (restartButton != null) restartButton.onClick.AddListener(OnRestartClicked);
-
-        // Ensure highlights are off by default
-        foreach (var highlight in cardHighlights)
-        {
-            if (highlight != null) highlight.SetActive(false);
-        }
-
-        if (scoreboardPanel != null) scoreboardPanel.SetActive(false);
-        if (gameOverPanel != null) gameOverPanel.SetActive(false);
-        if (peekingPanel != null) peekingPanel.SetActive(false);
-        SetInteractable(false);
-    }
 
     public void UpdateUI(Player player, Card drawnCard)
     {
+        if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+        {
+            gameManager.TogglePause();
+        }
         currentPlayer = player;
         if (cardImages == null) return;
         int maxCards = Mathf.Min(cardImages.Length, player.Hand.Count);
@@ -313,6 +337,11 @@ public class PlayerUIController : MonoBehaviour
 
     public void UpdateScoreboard(List<Player> players)
     {
+        UpdateScoreboard(players, new List<Player>(), null);
+    }
+
+    public void UpdateScoreboard(List<Player> players, List<Player> winners, Player penalizedPlayer)
+    {
         if (scoreEntryPrefab == null || scoreboardContent == null) return;
 
         foreach (Transform child in scoreboardContent)
@@ -328,7 +357,10 @@ public class PlayerUIController : MonoBehaviour
             var entryUI = entryObj.GetComponent<ScoreEntryUI>();
             if (entryUI != null)
             {
-                entryUI.Setup(player);
+                bool isWinner = winners.Contains(player);
+
+                bool hadPenalty = player == penalizedPlayer;
+                entryUI.Setup(player, isWinner, hadPenalty);
             }
         }
     }
@@ -353,5 +385,28 @@ public class PlayerUIController : MonoBehaviour
                 cardImages[i].sprite = spriteMap.GetSprite(currentPlayer.Hand[i].Suit, (int)currentPlayer.Hand[i].Value);
             }
         }
+    }
+
+    public void SetPauseMenu(bool isActive)
+    {
+        if (pauseMenuPanel != null)
+        {
+            pauseMenuPanel.SetActive(isActive);
+        }
+    }
+
+    private void OnResumeButtonClicked()
+    {
+        gameManager.TogglePause();
+    }
+
+    private void OnBackToMenuClicked()
+    {
+        gameManager.QuitToMainMenu();
+    }
+
+    private void OnQuitToDesktopClicked()
+    {
+        gameManager.QuitToDesktop();
     }
 }

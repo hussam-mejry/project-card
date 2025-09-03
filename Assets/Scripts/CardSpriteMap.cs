@@ -28,4 +28,3 @@ public class CardSpriteMap : ScriptableObject
         return _lookup.TryGetValue((suit, rank), out var sprite) ? sprite : null;
     }
 }
-

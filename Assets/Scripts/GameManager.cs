@@ -35,6 +35,8 @@ public class GameManager : MonoBehaviour
     private SpecialActionState _specialActionState = SpecialActionState.None;
     private int _blindSwapOwnIndex = -1;
     public bool IsAwaitingPlayerAction() => _specialActionState != SpecialActionState.None;
+    public GameObject mainMenuPanel;
+    public bool isGamePaused { get; private set; } = false;
 
     void Awake()
     {
@@ -183,6 +185,7 @@ public class GameManager : MonoBehaviour
 
     public void PlayerDiscard(Player player)
     {
+        if (isGamePaused) return;
         if (player == null || player.DrawnCard == null) return;
         if (player == currentPlayer && turnPhase != TurnPhase.ActionPhase && turnPhase != TurnPhase.DrawPhase) return;
 
@@ -222,7 +225,12 @@ public class GameManager : MonoBehaviour
 
     public void OnCambioButtonPressed()
     {
-        if (gameState != GameState.Playing) return;
+        if (isGamePaused)
+            return;
+
+        if (gameState != GameState.Playing)
+            return;
+
         _cambioCaller = currentPlayer;
         gameState = GameState.RoundEnding;
         playerUI.SetInteractable(false);
@@ -237,9 +245,12 @@ public class GameManager : MonoBehaviour
         playerUI.RevealAllHands(players);
         playerLayoutManager.RevealAllHands();
         yield return new WaitForSeconds(2f);
-        EndRoundAndScore();
 
-        playerUI.UpdateScoreboard(players);
+        // This now returns the necessary info for the UI
+        (List<Player> winners, Player penalizedPlayer) = EndRoundAndScore();
+
+        // Pass the info to the scoreboard
+        playerUI.UpdateScoreboard(players, winners, penalizedPlayer);
         playerUI.scoreboardPanel.SetActive(true);
         yield return new WaitForSeconds(4f);
         playerUI.scoreboardPanel.SetActive(false);
@@ -262,18 +273,20 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    private void EndRoundAndScore()
+    private (List<Player> winners, Player penalizedPlayer) EndRoundAndScore()
     {
         Dictionary<Player, int> handScores = new Dictionary<Player, int>();
         foreach (var p in players.Where(p => !p.IsEliminated)) handScores[p] = CalculateHandScore(p.Hand);
 
         int lowestScore = handScores.Count > 0 ? handScores.Values.Min() : 0;
         var winners = handScores.Where(kvp => kvp.Value == lowestScore).Select(kvp => kvp.Key).ToList();
+        Player penalizedPlayer = null;
 
         bool callerSucceeded = winners.Contains(_cambioCaller);
         if (_cambioCaller != null && !callerSucceeded)
         {
             _cambioCaller.Score -= (handScores[_cambioCaller] + 10);
+            penalizedPlayer = _cambioCaller;
         }
 
         foreach (var (player, score) in handScores)
@@ -281,7 +294,9 @@ public class GameManager : MonoBehaviour
             if (player != _cambioCaller && !winners.Contains(player)) player.Score -= score;
             if (player.Score <= 0) player.IsEliminated = true;
         }
+
         _cambioCaller = null;
+        return (winners, penalizedPlayer);
     }
 
     public void StartNewGame()
@@ -398,6 +413,8 @@ public class GameManager : MonoBehaviour
 
     private void OnOpponentCardSelected(Player targetPlayer, int targetCardIndex)
     {
+        if (isGamePaused)
+            return;
         if (_specialActionState == SpecialActionState.AwaitingSpyTarget)
         {
             StartCoroutine(ExecuteSpy(targetPlayer, targetCardIndex));
@@ -535,6 +552,8 @@ public class GameManager : MonoBehaviour
 
     public void PlayerSwap(Player player, int handIndex)
     {
+        if (isGamePaused)
+            return;
         if (!CanPlayerAct(player)) return;
 
         Card temp = player.Hand[handIndex];
@@ -558,7 +577,22 @@ public class GameManager : MonoBehaviour
         EndTurn();
     }
 
-    public Card DrawCard() { if (gameState != GameState.Playing || turnPhase != TurnPhase.DrawPhase) { Debug.LogWarning($"Cannot draw card in state: {gameState}, phase: {turnPhase}"); return null; } if (drawPile.Count == 0) ReshuffleDiscardPile(); if (drawPile.Count > 0) { Card card = drawPile[0]; drawPile.RemoveAt(0); turnPhase = TurnPhase.ActionPhase; return card; } return null; }
+    public Card DrawCard()
+    {
+        if (isGamePaused)
+            return null;
+
+        if (gameState != GameState.Playing || turnPhase != TurnPhase.DrawPhase)
+        {
+            Debug.LogWarning($"Cannot draw card in state: {gameState}, phase: {turnPhase}"); return null;
+        }
+        if (drawPile.Count == 0) ReshuffleDiscardPile();
+        if (drawPile.Count > 0)
+        {
+            Card card = drawPile[0]; drawPile.RemoveAt(0); turnPhase = TurnPhase.ActionPhase; return card;
+        }
+        return null;
+    }
 
     private void ReshuffleDiscardPile()
     {
@@ -652,5 +686,44 @@ public class GameManager : MonoBehaviour
         yield return new WaitForSeconds(0.5f);
         turnPhase = TurnPhase.EndPhase;
         EndTurn();
+    }
+
+    public void TogglePause()
+    {
+        if (gameState == GameState.GameOver || _isShowingRoundResults) return;
+
+        isGamePaused = !isGamePaused;
+
+        if (isGamePaused)
+        {
+            Time.timeScale = 0f; // This freezes all coroutines and animations
+            playerUI.SetPauseMenu(true);
+        }
+        else
+        {
+            Time.timeScale = 1f; // This resumes normal time
+            playerUI.SetPauseMenu(false);
+        }
+    }
+
+    public void QuitToMainMenu()
+    {
+        isGamePaused = false;
+        Time.timeScale = 1f;
+
+        if (playerUI != null && playerUI.gameplayUI != null)
+        {
+            playerUI.gameplayUI.SetActive(false);
+        }
+        if (mainMenuPanel != null)
+        {
+            mainMenuPanel.SetActive(true);
+        }
+    }
+
+    public void QuitToDesktop()
+    {
+        Debug.Log("Quitting application...");
+        Application.Quit();
     }
 }
