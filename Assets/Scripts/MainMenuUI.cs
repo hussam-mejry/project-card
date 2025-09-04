@@ -38,6 +38,7 @@ public class MainMenuUI : MonoBehaviour
             aiDifficultyDropdown.AddOptions(new System.Collections.Generic.List<string> { "Easy", "Medium", "Hard" });
             aiDifficultyDropdown.value = (int)gameManager.aiDifficulty;
             aiDifficultyDropdown.onValueChanged.AddListener(OnAIDifficultyChanged);
+            
         }
     }
 
